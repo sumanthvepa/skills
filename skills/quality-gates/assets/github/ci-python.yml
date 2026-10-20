@@ -1,0 +1,57 @@
+# Copy to .github/workflows/ci-python.yml
+# Make the `check` job required in branch protection.
+# Pin action versions (or SHAs) to current releases when adopting.
+
+name: ci-python
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .            # ADJUST: e.g. backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python and dependencies
+        run: |
+          uv python install             # uses .python-version / requires-python
+          uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Type check
+        run: uv run mypy src
+
+      - name: Layer boundaries (QG-03)
+        run: uv run lint-imports
+
+      # Integration tests use testcontainers; the runner provides Docker.
+      - name: Tests
+        run: uv run pytest
+
+      - name: Dependency vulnerabilities (SEC-08)
+        run: |
+          uv export --frozen --format requirements-txt --no-hashes \
+            --no-emit-project -o "$RUNNER_TEMP/requirements-audit.txt"
+          uvx pip-audit -r "$RUNNER_TEMP/requirements-audit.txt"

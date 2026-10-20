@@ -1,0 +1,23 @@
+# OpenAPI breaking-change detection (API-06).
+# Copy to ci/contract.gitlab-ci.yml.
+
+contract:breaking-changes:
+  stage: lint
+  image: golang:1.23                    # ADJUST: current Go
+  variables:
+    SPEC: api/openapi.yaml              # ADJUST
+    OASDIFF_VERSION: v1.18.1            # use 1.18.1 or later; update to current
+    GIT_DEPTH: "0"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [api/openapi.yaml]       # ADJUST
+  script:
+    - go install "github.com/oasdiff/oasdiff@${OASDIFF_VERSION}"
+    - git fetch origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - |
+      if git cat-file -e "FETCH_HEAD:${SPEC}" 2>/dev/null; then
+        git show "FETCH_HEAD:${SPEC}" > /tmp/base-openapi.yaml
+        oasdiff breaking /tmp/base-openapi.yaml "$SPEC" --fail-on ERR
+      else
+        echo "No contract on target branch; nothing to compare."
+      fi

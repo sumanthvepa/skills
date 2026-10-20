@@ -1,0 +1,87 @@
+# Copy to .github/workflows/architecture-review.yml
+#
+# Runs the architecture-review skill headlessly on each pull request and
+# posts (or updates) a PR comment with the report.
+#
+# Setup:
+#   - Install the base skills in the repo (SKILLS_DIR below).
+#   - Add the agent's API key as a repository secret (ANTHROPIC_API_KEY
+#     for Claude Code).
+#   - Advisory by default. Set REVIEW_BLOCKING to 'true' to fail the job
+#     on "VERDICT: CHANGES_REQUESTED" once the team trusts the reviewer.
+#
+# Other agents: the prompt is agent-neutral. Replace the "Install review
+# agent" and "Run review" steps with your agent's headless invocation
+# (for example an Antigravity or Gemini CLI non-interactive mode, if
+# available to you), keeping the tool permissions read-only.
+#
+# Security: this uses `pull_request` (not `pull_request_target`), so PRs
+# from forks get no secrets and the review is skipped for them. The agent
+# runs with read-only tools; the PR content is untrusted input.
+
+name: architecture-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SKILLS_DIR: .claude/skills        # ADJUST: .agent/skills for Antigravity installs
+      REVIEW_BLOCKING: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install review agent
+        run: npm install -g @anthropic-ai/claude-code   # pin a version when adopting
+
+      - name: Run review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BASE_REF: origin/${{ github.base_ref }}
+        run: |
+          PROMPT="Read ${SKILLS_DIR}/architecture-review/SKILL.md and \
+          ${SKILLS_DIR}/architecture-review/references/review-checklist.md, \
+          then follow the skill to review the changes between ${BASE_REF} \
+          and HEAD in this repository. This is a non-interactive CI run: do \
+          not modify any files, and print only the report in the specified format."
+          claude -p "$PROMPT" \
+            --allowedTools "Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git merge-base:*)" \
+            --output-format text > "$RUNNER_TEMP/architecture-review.md"
+          test -s "$RUNNER_TEMP/architecture-review.md"
+
+      - name: Post review comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr comment "$PR" --edit-last --body-file "$RUNNER_TEMP/architecture-review.md" \
+            || gh pr comment "$PR" --body-file "$RUNNER_TEMP/architecture-review.md"
+
+      - name: Enforce verdict
+        if: env.REVIEW_BLOCKING == 'true'
+        run: |
+          if grep -q '^VERDICT: CHANGES_REQUESTED' "$RUNNER_TEMP/architecture-review.md"; then
+            echo "Architecture review requested changes."
+            exit 1
+          fi

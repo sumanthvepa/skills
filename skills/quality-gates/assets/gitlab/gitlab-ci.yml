@@ -1,0 +1,27 @@
+# Copy to .gitlab-ci.yml at the repository root, and copy the fragments
+# you need (java, python, node, security, contract, architecture-review)
+# to ci/. Remove includes for stacks you do not use.
+#
+# Make the pipeline required: Settings → Merge requests →
+# "Pipelines must succeed". Pin image versions to current releases.
+
+stages:
+  - lint
+  - test
+  - security
+  - review
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+include:
+  - local: ci/java.gitlab-ci.yml
+  - local: ci/python.gitlab-ci.yml
+  - local: ci/node.gitlab-ci.yml
+  - local: ci/security.gitlab-ci.yml
+  - local: ci/contract.gitlab-ci.yml
+  # From the architecture-review skill:
+  - local: ci/architecture-review.gitlab-ci.yml

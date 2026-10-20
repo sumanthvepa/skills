@@ -1,0 +1,39 @@
+# Java jobs. Copy to ci/java.gitlab-ci.yml.
+
+variables:
+  JAVA_DIR: "."                         # ADJUST: e.g. backend
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
+
+.java:
+  image: maven:3.9-eclipse-temurin-21   # ADJUST: your Java LTS
+  cache:
+    key: maven-$CI_COMMIT_REF_SLUG
+    paths: [.m2/repository]
+  before_script:
+    - cd "$JAVA_DIR"
+
+java:build:
+  extends: .java
+  stage: test
+  # Testcontainers needs Docker; use Docker-in-Docker (or a runner with a Docker socket).
+  services:
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    TESTCONTAINERS_HOST_OVERRIDE: docker
+  script:
+    # verify = compile, tests, ArchUnit (QG-03), Spotless, coverage gates
+    - ./mvnw -B verify                  # or: ./gradlew build
+  artifacts:
+    when: always
+    reports:
+      junit: "$JAVA_DIR/target/surefire-reports/TEST-*.xml"
+
+java:dependency-check:                  # SEC-08
+  extends: .java
+  stage: security
+  script:
+    # NVD_API_KEY: masked CI/CD variable (https://nvd.nist.gov/developers/request-an-api-key)
+    - ./mvnw -B org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7 -DnvdApiKey="$NVD_API_KEY"

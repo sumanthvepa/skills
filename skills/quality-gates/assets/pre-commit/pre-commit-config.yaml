@@ -1,0 +1,112 @@
+# Copy to .pre-commit-config.yaml at the repository root.
+#
+#   pipx install pre-commit        # or: uv tool install pre-commit
+#   pre-commit install --install-hooks --hook-type pre-commit --hook-type pre-push
+#   pre-commit run --all-files
+#   pre-commit autoupdate          # update the pinned revs below to current releases
+#
+# Delete the sections for stacks this repository does not use.
+# Fast checks run on commit; slower ones (type checks, boundary checks)
+# run on push. CI runs the same tools and is the enforcement point:
+# hooks can be skipped locally, CI cannot (QG-02, QG-04).
+#
+# ADJUST: for a monorepo, change `entry` to run in the right directory,
+# e.g. entry: bash -c 'cd backend && uv run mypy src'
+# and narrow `files:` to that directory, e.g. files: ^backend/
+
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+
+repos:
+  # ---------------------------------------------------------------- general
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]          # syntax-only; tolerates GitLab !reference tags
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: detect-private-key
+      - id: no-commit-to-branch
+        args: [--branch, main]
+
+  # ---------------------------------------------------------------- secrets (SEC-05)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  # ---------------------------------------------------------------- python
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (strict)
+        entry: uv run mypy src
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
+      - id: import-linter
+        name: import-linter (layer boundaries)
+        entry: uv run lint-imports
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
+
+  # ---------------------------------------------------------------- node / typescript
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier
+        entry: npx prettier --check
+        language: system
+        files: \.(ts|tsx|js|jsx|mjs|cjs|json|css|scss|md|ya?ml)$
+      - id: eslint
+        name: eslint
+        entry: npx eslint --max-warnings=0
+        language: system
+        files: \.(ts|tsx|js|jsx|mjs|cjs)$
+      - id: tsc
+        name: tsc --noEmit
+        entry: npx tsc --noEmit -p .
+        language: system
+        files: \.(ts|tsx)$
+        pass_filenames: false
+        stages: [pre-push]
+      - id: depcruise
+        name: dependency-cruiser (layer boundaries)
+        entry: npx depcruise src --config .dependency-cruiser.cjs
+        language: system
+        files: \.(ts|js)$
+        pass_filenames: false
+        stages: [pre-push]
+
+  # ---------------------------------------------------------------- java
+  - repo: local
+    hooks:
+      - id: spotless
+        name: spotless check
+        entry: ./mvnw -q spotless:check        # or: ./gradlew spotlessCheck
+        language: system
+        files: \.java$
+        pass_filenames: false
+      - id: archunit
+        name: ArchUnit (layer boundaries)
+        entry: ./mvnw -q test -Dtest=ArchitectureTest   # or: ./gradlew test --tests '*ArchitectureTest'
+        language: system
+        files: \.java$
+        pass_filenames: false
+        stages: [pre-push]

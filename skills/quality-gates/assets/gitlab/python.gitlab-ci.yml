@@ -1,0 +1,47 @@
+# Python jobs. Copy to ci/python.gitlab-ci.yml.
+
+variables:
+  PY_DIR: "."                           # ADJUST: e.g. backend
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.uv-cache"
+
+.python:
+  image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim   # ADJUST: pin a current tag
+  cache:
+    key: uv-$CI_COMMIT_REF_SLUG
+    paths: [.uv-cache]
+  before_script:
+    - cd "$PY_DIR"
+    - uv sync --frozen
+
+python:lint:
+  extends: .python
+  stage: lint
+  script:
+    - uv run ruff check .
+    - uv run ruff format --check .
+    - uv run mypy src
+    - uv run lint-imports              # layer boundaries (QG-03)
+
+python:test:
+  extends: .python
+  stage: test
+  services:
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    TESTCONTAINERS_HOST_OVERRIDE: docker
+  script:
+    - uv run pytest --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: "$PY_DIR/report.xml"
+
+python:audit:                           # SEC-08
+  extends: .python
+  stage: security
+  script:
+    - uv export --frozen --format requirements-txt --no-hashes --no-emit-project -o /tmp/requirements-audit.txt
+    - uvx pip-audit -r /tmp/requirements-audit.txt

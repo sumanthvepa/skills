@@ -1,0 +1,37 @@
+# Node jobs for each Node app (backend and/or frontend).
+# Copy to ci/node.gitlab-ci.yml.
+# Each app must define npm scripts: lint, typecheck, test, and optionally
+# depcruise (backend) and build.
+
+.node:
+  image: node:22-bookworm-slim          # ADJUST: current Node LTS
+  parallel:
+    matrix:
+      - APP_DIR: [backend, frontend]    # ADJUST: directories of your Node apps ('.' for root)
+  cache:
+    key: npm-$APP_DIR-$CI_COMMIT_REF_SLUG
+    paths: [.npm]
+  before_script:
+    - cd "$APP_DIR"
+    - npm ci --cache "$CI_PROJECT_DIR/.npm" --prefer-offline
+
+node:lint:
+  extends: .node
+  stage: lint
+  script:
+    - npm run lint                      # includes frontend boundary rules
+    - npm run typecheck
+    - npm run depcruise --if-present    # backend layer boundaries (QG-03)
+
+node:test:
+  extends: .node
+  stage: test
+  script:
+    - npm test
+    - npm run build --if-present
+
+node:audit:                             # SEC-08
+  extends: .node
+  stage: security
+  script:
+    - npm audit --audit-level=high --omit=dev

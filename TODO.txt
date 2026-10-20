@@ -1,0 +1,1 @@
+*[DONE]issue001-skills: Initial collection of skills and tools for agentic development

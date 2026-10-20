@@ -1,0 +1,16 @@
+# Security jobs. Copy to ci/security.gitlab-ci.yml.
+#
+# GitLab's SAST and Secret Detection templates are available on all tiers
+# (results UI and MR widgets vary by tier). Dependency Scanning requires
+# GitLab Ultimate; on other tiers rely on the per-stack audit jobs
+# (java:dependency-check, python:audit, node:audit).
+
+include:
+  - template: Jobs/SAST.gitlab-ci.yml               # SEC-03, SEC-04
+  - template: Jobs/Secret-Detection.gitlab-ci.yml   # SEC-05, CFG-01
+  # - template: Jobs/Dependency-Scanning.gitlab-ci.yml   # Ultimate only
+
+secret_detection:
+  stage: security
+  variables:
+    SECRET_DETECTION_HISTORIC_SCAN: "false"         # set "true" once to scan full history

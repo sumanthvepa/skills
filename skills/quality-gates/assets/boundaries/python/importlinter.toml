@@ -1,0 +1,68 @@
+# Merge into pyproject.toml. Replace `app` with your top-level package.
+# Run: uv run lint-imports   (add `import-linter` as a dev dependency)
+#
+# Enforces backend-layering (LAY-02 .. LAY-05). Indirect imports
+# are forbidden too, so `app.api -> app.services -> app.infrastructure`
+# fails even though `app.api` never imports infrastructure itself.
+#
+# Wiring: build concrete infrastructure in app/main.py (the composition
+# root, which is exempt) and expose services to routers via app.state or
+# dependency overrides, so app.api never imports app.infrastructure.
+#
+# If lint-imports reports that a listed external package cannot be
+# found, remove it from the list (it is not installed in this project).
+
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Domain is pure (LAY-02)"
+type = "forbidden"
+source_modules = ["app.domain"]
+forbidden_modules = [
+    "app.api",
+    "app.services",
+    "app.infrastructure",
+    "app.main",
+    "app.config",
+    "fastapi",
+    "starlette",
+    "pydantic",
+    "pydantic_settings",
+    "sqlalchemy",
+    "httpx",
+    "requests",
+]
+
+[[tool.importlinter.contracts]]
+name = "Services depend only on the domain (LAY-03)"
+type = "forbidden"
+source_modules = ["app.services"]
+forbidden_modules = [
+    "app.api",
+    "app.infrastructure",
+    "app.main",
+    "fastapi",
+    "starlette",
+    "sqlalchemy",
+]
+
+[[tool.importlinter.contracts]]
+name = "API is a thin adapter (LAY-04)"
+type = "forbidden"
+source_modules = ["app.api"]
+forbidden_modules = [
+    "app.infrastructure",
+    "sqlalchemy",
+]
+
+[[tool.importlinter.contracts]]
+name = "Infrastructure implements domain ports (LAY-05)"
+type = "forbidden"
+source_modules = ["app.infrastructure"]
+forbidden_modules = [
+    "app.api",
+    "app.services",
+    "app.main",
+]

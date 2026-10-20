@@ -1,0 +1,59 @@
+# Copy to .github/workflows/ci-node.yml
+# Runs for each Node app in the matrix (backend and/or frontend).
+# Each app must define the npm scripts: lint, typecheck, test, and
+# optionally depcruise (backend) and build. Missing optional scripts are skipped.
+# Make the `check` jobs required in branch protection.
+# Pin action versions (or SHAs) to current releases when adopting.
+
+name: ci-node
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [backend, frontend]        # ADJUST: directories of your Node apps ('.' for root)
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*           # or: node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint (includes boundary rules for frontends)
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Layer boundaries (QG-03)
+        run: npm run depcruise --if-present
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build --if-present
+
+      - name: Dependency vulnerabilities (SEC-08)
+        run: npm audit --audit-level=high --omit=dev

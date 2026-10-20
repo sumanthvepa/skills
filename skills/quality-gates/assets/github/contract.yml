@@ -1,0 +1,41 @@
+# Copy to .github/workflows/contract.yml
+# Fails a PR that introduces breaking changes to the OpenAPI contract
+# (API-06). To ship an intentional breaking change, version the API or
+# get approval and merge with an admin override; record it in an ADR.
+
+name: contract
+
+on:
+  pull_request:
+    paths:
+      - api/openapi.yaml                # ADJUST: contract path
+
+permissions:
+  contents: read
+
+jobs:
+  breaking-changes:
+    runs-on: ubuntu-latest
+    env:
+      SPEC: api/openapi.yaml            # ADJUST
+      OASDIFF_VERSION: v1.18.1          # use 1.18.1 or later; update to current
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install oasdiff
+        run: go install "github.com/oasdiff/oasdiff@${OASDIFF_VERSION}"
+
+      - name: Compare with base branch
+        run: |
+          if git cat-file -e "origin/${GITHUB_BASE_REF}:${SPEC}" 2>/dev/null; then
+            git show "origin/${GITHUB_BASE_REF}:${SPEC}" > "$RUNNER_TEMP/base-openapi.yaml"
+            oasdiff breaking "$RUNNER_TEMP/base-openapi.yaml" "$SPEC" --fail-on ERR
+          else
+            echo "No contract on base branch; nothing to compare."
+          fi
