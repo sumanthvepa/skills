@@ -1,1 +1,2 @@
-*[DONE]issue001-skills: Initial collection of skills and tools for agentic development
+*[DONE]issue002-copyleft: Add the GNU v3 copyleft notice.
+[DONE]issue001-skills: Initial collection of skills and tools for agentic development

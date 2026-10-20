@@ -84,7 +84,7 @@ current documentation.
 Example for a project using Antigravity and Claude Code side by side:
 
 ```bash
-BASE=/path/to/base-skills
+BASE=/path/to/skills
 mkdir -p .agent/skills .claude/skills .agent/rules
 cp -R "$BASE"/skills/* .agent/skills/
 cp -R "$BASE"/skills/* .claude/skills/
@@ -114,8 +114,10 @@ CI, and boundary checks, and install the `architecture-review` wrappers
 ## Layout
 
 ```
-base-skills/
+skills/
   README.md
+  COPYING                           GNU General Public License v3
+  copyleft-template.txt             copyright header for source files
   agent-rules/
     AGENTS.md                       always-on rules template
   skills/
@@ -136,3 +138,26 @@ base-skills/
     architecture-review/
       assets/                       Antigravity / Claude Code / CI wrappers
 ```
+
+## License
+
+Copyright (C) 2026 Sumanth Vepa.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program, in the file `COPYING`. If not, see
+<https://www.gnu.org/licenses/>.
+
+This license covers every file in this repository, including the
+templates under `agent-rules/` and `skills/*/assets/`.
+`copyleft-template.txt` holds the standard copyright header for
+source files.
